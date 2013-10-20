@@ -255,4 +255,5 @@ CLUSTER_SETTINGS = {
     'force_spot_master': (bool, False, False, None, None),
     'disable_cloudinit': (bool, False, False, None, None),
     'dns_prefix': (bool, False, False, None, None),
+    'use_nfs_crossmnt': (bool, False, False, None, None),
 }

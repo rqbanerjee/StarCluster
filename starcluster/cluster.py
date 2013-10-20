@@ -400,6 +400,7 @@ class Cluster(object):
                  disable_cloudinit=False,
                  vpc_id=None,
                  subnet_id=None,
+                 use_nfs_crossmnt=False,
                  **kwargs):
         # validation
         if vpc_id or subnet_id:
@@ -429,6 +430,7 @@ class Cluster(object):
         self.plugins = self.load_plugins(plugins)
         self.userdata_scripts = userdata_scripts or []
         self.dns_prefix = dns_prefix and cluster_tag
+        self.use_nfs_crossmnt = use_nfs_crossmnt
 
         self._cluster_group = None
         self._placement_group = None
@@ -501,7 +503,8 @@ class Cluster(object):
         if not self.__default_plugin:
             self.__default_plugin = clustersetup.DefaultClusterSetup(
                 disable_threads=self.disable_threads,
-                num_threads=self.num_threads)
+                num_threads=self.num_threads,
+                use_nfs_crossmnt=self.use_nfs_crossmnt)
         return self.__default_plugin
 
     @property
@@ -526,8 +529,7 @@ class Cluster(object):
             vol = vols.get(volname)
             dev = vol.get('device')
             if dev in devices:
-                # rm user-defined devices from the list of auto-assigned
-                # devices
+                #rm user-defined devices from the list of auto-assigned devices
                 devices.remove(dev)
             volid = vol.get('volume_id')
             if dev and not volid in devmap:
@@ -688,7 +690,8 @@ class Cluster(object):
                  availability_zone=self.availability_zone,
                  dns_prefix=self.dns_prefix,
                  disable_queue=self.disable_queue,
-                 disable_cloudinit=self.disable_cloudinit),
+                 disable_cloudinit=self.disable_cloudinit,
+                 use_nfs_crossmnt=self.use_nfs_crossmnt),
             use_json=True)
         if not static.CORE_TAG in sg.tags:
             sg.add_tag(static.CORE_TAG, core_settings)

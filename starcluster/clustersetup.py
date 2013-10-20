@@ -88,7 +88,7 @@ class DefaultClusterSetup(ClusterSetup):
     """
     Default ClusterSetup implementation for StarCluster
     """
-    def __init__(self, disable_threads=False, num_threads=20):
+    def __init__(self, disable_threads=False, num_threads=20, use_nfs_crossmnt):
         self._nodes = None
         self._master = None
         self._user = None
@@ -97,6 +97,7 @@ class DefaultClusterSetup(ClusterSetup):
         self._disable_threads = disable_threads
         self._num_threads = num_threads
         self._pool = None
+        self._use_nfs_crossmnt = use_nfs_crossmnt
 
     @property
     def pool(self):
@@ -364,7 +365,7 @@ class DefaultClusterSetup(ClusterSetup):
         if start_server:
             master.start_nfs_server()
         if nodes:
-            master.export_fs_to_nodes(nodes, export_paths)
+            master.export_fs_to_nodes(nodes, export_paths, self._use_nfs_crossmnt)
             self._mount_nfs_shares(nodes, export_paths=export_paths)
 
     def run(self, nodes, master, user, user_shell, volumes):

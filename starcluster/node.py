@@ -643,7 +643,7 @@ class Node(object):
         self.ssh.execute('userdel %s' % name)
         self.ssh.execute('groupdel %s' % name)
 
-    def export_fs_to_nodes(self, nodes, export_paths):
+    def export_fs_to_nodes(self, nodes, export_paths, use_nfs_crossmnt = False):
         """
         Export each path in export_paths to each node in nodes via NFS
 
@@ -661,6 +661,9 @@ class Node(object):
         log.info("Configuring NFS exports path(s):\n%s" %
                  ' '.join(export_paths))
         nfs_export_settings = "(async,no_root_squash,no_subtree_check,rw)"
+        if use_nfs_crossmnt:
+            nfs_export_settings = "(async,no_root_squash,no_subtree_check,rw,crossmnt)"
+
         etc_exports = self.ssh.remote_file('/etc/exports', 'r')
         contents = etc_exports.read()
         etc_exports.close()
