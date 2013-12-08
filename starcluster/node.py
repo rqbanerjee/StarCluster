@@ -328,6 +328,14 @@ class Node(object):
         return self.instance.region
 
     @property
+    def vpc_id(self):
+        return self.instance.vpc_id
+
+    @property
+    def subnet_id(self):
+        return self.instance.subnet_id
+
+    @property
     def root_device_name(self):
         root_dev = self.instance.root_device_name
         bmap = self.block_device_mapping
@@ -697,11 +705,11 @@ class Node(object):
 
     def start_nfs_server(self):
         log.info("Starting NFS server on %s" % self.alias)
-        self.ssh.execute('/etc/init.d/portmap start')
+        self.ssh.execute('/etc/init.d/portmap start', ignore_exit_status=True)
         self.ssh.execute('mount -t rpc_pipefs sunrpc /var/lib/nfs/rpc_pipefs/',
                          ignore_exit_status=True)
         self.ssh.execute('/etc/init.d/nfs start')
-        self.ssh.execute('/usr/sbin/exportfs -fra')
+        self.ssh.execute('exportfs -fra')
 
     def mount_nfs_shares(self, server_node, remote_paths):
         """
@@ -1025,14 +1033,19 @@ class Node(object):
 
     @property
     def addr(self):
-        if self.instance.vpc_id:
-            #if instance has an elastic ip
-            if self.instance.ip_address:
-                return self.instance.ip_address
+        """
+        Returns the most widely accessible address for the instance. This
+        property first checks if dns_name is available, then the public ip, and
+        finally the private ip. If none of these addresses are available it
+        returns None.
+        """
+        if not self.dns_name:
+            if self.ip_address:
+                return self.ip_address
             else:
-                return self.instance.private_ip_address
+                return self.private_ip_address
         else:
-            return self.instance.dns_name
+            return self.dns_name or None
 
     @property
     def ssh(self):
@@ -1073,11 +1086,8 @@ class Node(object):
                 sshopts += ' -A'
             if pseudo_tty:
                 sshopts += ' -t'
-            addr = self.dns_name
-            if self.instance.vpc_id:
-                addr = self.private_ip_address
             ssh_cmd = static.SSH_TEMPLATE % dict(opts=sshopts, user=user,
-                                                 host=addr)
+                                                 host=self.addr)
             if command:
                 command = "'source /etc/profile && %s'" % command
                 ssh_cmd = ' '.join([ssh_cmd, command])

@@ -341,7 +341,7 @@ class ClusterManager(managers.Manager):
                 print 'Cluster nodes:'
                 for node in nodes:
                     nodeline = "    %7s %s %s %s" % (node.alias, node.state,
-                                                     node.id, node.dns_name)
+                                                     node.id, node.addr or '')
                     if node.spot_id:
                         nodeline += ' (spot %s)' % node.spot_id
                     if show_ssh_status:
@@ -689,6 +689,7 @@ class Cluster(object):
                  node_instance_type=self.node_instance_type,
                  availability_zone=self.availability_zone,
                  dns_prefix=self.dns_prefix,
+                 subnet_id=self.subnet_id,
                  disable_queue=self.disable_queue,
                  disable_cloudinit=self.disable_cloudinit,
                  use_nfs_crossmnt=self.use_nfs_crossmnt),
@@ -878,7 +879,7 @@ class Cluster(object):
                       placement=zone or getattr(self.zone, 'name', None),
                       user_data=user_data,
                       placement_group=placement_group,
-                      subnet_id=getattr(self, 'subnet_id', None))
+                      subnet_id=self.subnet_id)
         resvs = []
         if spot_bid:
             security_group_id = self.cluster_group.id
@@ -1496,8 +1497,7 @@ class Cluster(object):
         if region in static.CLUSTER_REGIONS:
             pg = self.ec2.get_placement_group_or_none(self._security_group)
             if pg:
-                log.info("Removing %s placement group" % pg.name)
-                pg.delete()
+                self.ec2.delete_group(pg)
         sg = self.ec2.get_group_or_none(self._security_group)
         if sg:
             self.ec2.delete_group(sg)

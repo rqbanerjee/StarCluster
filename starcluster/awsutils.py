@@ -123,29 +123,33 @@ class EasyEC2(EasyAWS):
                     aws_validate_certs=aws_validate_certs)
         self.s3 = EasyS3(aws_access_key_id, aws_secret_access_key, **kwds)
         self._regions = None
-        self._platforms = None
-        self._default_vpc = None
+        self._account_attrs = None
+        self._account_attrs_region = None
 
     def __repr__(self):
         return '<EasyEC2: %s (%s)>' % (self.region.name, self.region.endpoint)
 
     def _fetch_account_attrs(self):
-        resp = self.conn.describe_account_attributes(
-            ['default-vpc', 'supported-platforms'])
-        self._platforms = resp[0].attribute_values
-        self._default_vpc = resp[1].attribute_values[0]
+        acct_attrs = self._account_attrs
+        if not acct_attrs or self._account_attrs_region != self.region.name:
+            resp = self.conn.describe_account_attributes(
+                ['default-vpc', 'supported-platforms'])
+            self._account_attrs = acct_attrs = {}
+            for attr in resp:
+                acct_attrs[attr.attribute_name] = attr.attribute_values
+            self._account_attrs_region = self.region.name
+        return self._account_attrs
 
     @property
     def supported_platforms(self):
-        if not self._platforms:
-            self._fetch_account_attrs()
-        return self._platforms
+        return self._fetch_account_attrs()['supported-platforms']
 
     @property
     def default_vpc(self):
-        if not self._default_vpc:
-            self._fetch_account_attrs()
-        return self._default_vpc
+        default_vpc = self._fetch_account_attrs()['default-vpc'][0]
+        if default_vpc == 'none':
+            default_vpc = None
+        return default_vpc
 
     def connect_to_region(self, region_name):
         """
@@ -217,12 +221,15 @@ class EasyEC2(EasyAWS):
 
     def delete_group(self, group, max_retries=60, retry_delay=5):
         """
-        This method deletes the security group using group.delete() but in the
-        case that group.delete() throws a DependencyViolation error it will
-        keep retrying until it's successful. Waits 5 seconds between each
-        retry.
+        This method deletes a security or placement group using group.delete()
+        but in the case that group.delete() throws a DependencyViolation error
+        or InvalidPlacementGroup.InUse error it will keep retrying until it's
+        successful. Waits 5 seconds between each retry.
         """
-        s = utils.get_spinner("Removing %s security group..." % group.name)
+        label = 'security'
+        if hasattr(group, 'strategy') and group.strategy == 'cluster':
+            label = 'placement'
+        s = utils.get_spinner("Removing %s group: %s" % (label, group.name))
         try:
             for i in range(max_retries):
                 try:
@@ -232,6 +239,10 @@ class EasyEC2(EasyAWS):
                         raise
                     if e.error_code == 'DependencyViolation':
                         log.debug('DependencyViolation error - retrying in 5s',
+                                  exc_info=True)
+                        time.sleep(retry_delay)
+                    elif e.error_code == 'InvalidPlacementGroup.InUse':
+                        log.debug('Placement group in use - retrying in 5s',
                                   exc_info=True)
                         time.sleep(retry_delay)
                     else:
@@ -260,18 +271,24 @@ class EasyEC2(EasyAWS):
                                                to_port=ssh_port,
                                                cidr_ip=static.WORLD_CIDRIP)
         if auth_group_traffic:
-            self.conn.authorize_security_group(group_id=sg.id,
-                                               ip_protocol='icmp',
-                                               from_port=-1, to_port=-1,
-                                               cidr_ip=static.WORLD_CIDRIP)
-            self.conn.authorize_security_group(group_id=sg.id,
-                                               ip_protocol='tcp',
-                                               from_port=1, to_port=65535,
-                                               cidr_ip=static.WORLD_CIDRIP)
-            self.conn.authorize_security_group(group_id=sg.id,
-                                               ip_protocol='udp',
-                                               from_port=1, to_port=65535,
-                                               cidr_ip=static.WORLD_CIDRIP)
+            self.conn.authorize_security_group(
+                group_id=sg.id,
+                src_security_group_group_id=sg.id,
+                ip_protocol='icmp',
+                from_port=-1,
+                to_port=-1)
+            self.conn.authorize_security_group(
+                group_id=sg.id,
+                src_security_group_group_id=sg.id,
+                ip_protocol='tcp',
+                from_port=1,
+                to_port=65535)
+            self.conn.authorize_security_group(
+                group_id=sg.id,
+                src_security_group_group_id=sg.id,
+                ip_protocol='udp',
+                from_port=1,
+                to_port=65535)
         return sg
 
     def get_all_security_groups(self, groupnames=[]):
@@ -436,9 +453,11 @@ class EasyEC2(EasyAWS):
             if instance_type == 'm1.small' and img.architecture == "i386":
                 # Needed for m1.small + 32bit AMI (see gh-329)
                 instance_store = True
-            bdmap = self.create_block_device_map(add_ephemeral_drives=True,
-                                                 num_ephemeral_drives=24,
-                                                 instance_store=instance_store)
+            use_ephemeral = instance_type != 't1.micro'
+            bdmap = self.create_block_device_map(
+                add_ephemeral_drives=use_ephemeral,
+                num_ephemeral_drives=24,
+                instance_store=instance_store)
             # Prune drives from runtime block device map that may override EBS
             # volumes specified in the AMIs block device map
             for dev in img.block_device_mapping:
@@ -778,6 +797,8 @@ class EasyEC2(EasyAWS):
         uptime = utils.get_elapsed_time(instance.launch_time) or 'N/A'
         tags = ', '.join(['%s=%s' % (k, v) for k, v in
                           instance.tags.iteritems()]) or 'N/A'
+        vpc_id = instance.vpc_id or 'N/A'
+        subnet_id = instance.subnet_id or 'N/A'
         if state == 'stopped':
             uptime = 'N/A'
         print "id: %s" % instance_id
@@ -789,6 +810,8 @@ class EasyEC2(EasyAWS):
             print "state: %s" % state
         print "public_ip: %s" % public_ip
         print "private_ip: %s" % private_ip
+        print "vpc: %s" % vpc_id
+        print "subnet: %s" % subnet_id
         print "zone: %s" % zone
         print "ami: %s" % ami
         print "virtualization: %s" % virt_type
@@ -1384,12 +1407,25 @@ class EasyEC2(EasyAWS):
     def get_spot_history(self, instance_type, start=None, end=None, zone=None,
                          plot=False, plot_server_interface="localhost",
                          plot_launch_browser=True, plot_web_browser=None,
-                         plot_shutdown_server=True):
+                         plot_shutdown_server=True, classic=False, vpc=False):
         if start and not utils.is_iso_time(start):
             raise exception.InvalidIsoDate(start)
         if end and not utils.is_iso_time(end):
             raise exception.InvalidIsoDate(end)
-        pdesc = "Linux/UNIX"
+        if classic and vpc:
+            raise exception.BaseException(
+                "classic and vpc kwargs are mutually exclusive")
+        if not classic and not vpc:
+            vpc = self.default_vpc is not None
+            classic = not vpc
+        if classic:
+            pdesc = "Linux/UNIX"
+            short_pdesc = "EC2-Classic"
+        else:
+            pdesc = "Linux/UNIX (Amazon VPC)"
+            short_pdesc = "VPC"
+        log.info("Fetching spot history for %s (%s)" %
+                 (instance_type, short_pdesc))
         hist = self.conn.get_spot_price_history(start_time=start, end_time=end,
                                                 availability_zone=zone,
                                                 instance_type=instance_type,
