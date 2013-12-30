@@ -336,3 +336,10 @@ class TestStarClusterConfig(tests.StarClusterTest):
         except exception.ConfigError:
             raise Exception(('config does not ignore inline '
                              'comment: %s') % valid_case)
+
+    def test_nfs_crosmnt(self):
+        c1 = self.config.clusters.get('c1')
+        c5 = self.config.clusters.get('c5')
+        nfs_key = 'use_nfs_crossmnt'
+        assert not c1[nfs_key]
+        assert c5[nfs_key]

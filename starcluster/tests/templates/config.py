@@ -73,6 +73,7 @@ default_config = {
     'c1_vols': 'v1,v2,v3',
     'c1_plugs': 'p1,p2,p3',
     'c1_zone': 'us-east-1c',
+    'c1_use_nfs_crossmnt': False,
     'c2_extends': 'c1',
     'c2_keyname': 'k2',
     'c2_size': 6,
@@ -85,6 +86,8 @@ default_config = {
     'c3_vols': 'v3',
     'c4_extends': 'c3',
     'c4_permissions': 's1',
+    'c5_extends': 'c1',
+    'c5_use_nfs_crossmnt': True,
 }
 
 config_test_template = """
@@ -178,6 +181,7 @@ NODE_INSTANCE_TYPE = %(c1_node_type)s
 AVAILABILITY_ZONE = %(c1_zone)s
 VOLUMES = %(c1_vols)s
 PLUGINS = %(c1_plugs)s
+USE_NFS_CROSSMNT = %(c1_use_nfs_crossmnt)s
 
 [cluster c2]
 EXTENDS=%(c2_extends)s
@@ -196,4 +200,8 @@ VOLUMES = %(c3_vols)s
 [cluster c4]
 EXTENDS=%(c4_extends)s
 PERMISSIONS=%(c4_permissions)s
+
+[cluster c5]
+EXTENDS=%(c5_extends)s
+USE_NFS_CROSSMNT = %(c5_use_nfs_crossmnt)s
 """
