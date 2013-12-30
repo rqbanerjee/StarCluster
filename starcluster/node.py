@@ -173,7 +173,7 @@ class Node(object):
                     "Failed to import plugin %s: %s" %
                     (klass_name, e[0]))
             except Exception as exc:
-                log.error("Error occured:", exc_info=True)
+                log.error("Error occurred:", exc_info=True)
                 raise exception.PluginLoadError(
                     "Failed to load plugin %s with "
                     "the following error: %s - %s" %

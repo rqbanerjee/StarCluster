@@ -304,7 +304,7 @@ class StarClusterCLI(object):
             # re-raise SystemExit to avoid the bug-catcher below
             raise
         except Exception:
-            log.error("Unhandled exception occured", exc_info=True)
+            log.error("Unhandled exception occurred", exc_info=True)
             self.bug_found()
 
 

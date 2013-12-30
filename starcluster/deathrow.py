@@ -83,7 +83,7 @@ def _load_plugins(plugins, debug=True):
         try:
             plug_obj = klass(*config_args, **config_kwargs)
         except Exception as exc:
-            log.error("Error occured:", exc_info=True)
+            log.error("Error occurred:", exc_info=True)
             raise exception.PluginLoadError(
                 "Failed to load plugin %s with "
                 "the following error: %s - %s" %
