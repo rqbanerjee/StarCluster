@@ -352,7 +352,9 @@ template in detail.
 | disable_cloudinit    | No       | Do not use cloudinit for cluster accounting (only required if using non-        |
 |                      |          | cloudinit enabled AMIs)                                                         |
 +----------------------+----------+---------------------------------------------------------------------------------+
-
+| use_nfs_crossmnt     | No       | Use nfs crossmnt to mount volumes accross the cluster. Crossmnt allows the NFS  |
+|                      |          | client to traverse the directories below the exported root.                     |
++----------------------+----------+---------------------------------------------------------------------------------+
 
 Defining Multiple Cluster Templates
 -----------------------------------
